@@ -228,6 +228,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     globalSettingsProvider = SettingProvider(widget.sharedPreferences);
+    // Migrate token from plain SharedPreferences → encrypted secure storage.
+    Future.microtask(() => globalSettingsProvider?.initSecureToken());
     context.read<LanguageCubit>().loadCurrentLanguage();
     super.initState();
   }

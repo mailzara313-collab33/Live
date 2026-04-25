@@ -11,16 +11,16 @@ class StringValidation {
 
   static String? validateUserName(
       String value, String? msg1, String? msg2, String? msg3) {
-    //const pattern = r'^(?=.*[a-zA-Z])[a-zA-Z0-9_-]+$';
-    // final regExp = RegExp(pattern);
+    const pattern = r'^(?=.*[a-zA-Z])[a-zA-Z0-9_-]+$';
+    final regExp = RegExp(pattern);
 
     if (value.isEmpty) {
       return msg1;
     } else if (value.length <= 1) {
       return msg2;
-    } /* else if (!regExp.hasMatch(value)) {
+    } else if (!regExp.hasMatch(value)) {
       return msg3;
-    } */
+    }
 
     return null;
   }

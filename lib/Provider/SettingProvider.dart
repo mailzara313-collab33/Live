@@ -1,5 +1,8 @@
+import 'package:eshop_multivendor/Provider/CartProvider.dart';
 import 'package:eshop_multivendor/Provider/UserProvider.dart';
+import 'package:eshop_multivendor/Provider/systemProvider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Helper/String.dart';
@@ -7,8 +10,32 @@ import '../Helper/String.dart';
 class SettingProvider {
   late SharedPreferences _sharedPreferences;
 
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  // In-memory cache so token is readable synchronously after initSecureToken().
+  String? _cachedToken;
+
   SettingProvider(SharedPreferences sharedPreferences) {
     _sharedPreferences = sharedPreferences;
+  }
+
+  /// Migrates token from plain SharedPreferences into encrypted secure storage.
+  /// Call once at app startup (non-blocking from initState).
+  Future<void> initSecureToken() async {
+    final secureToken = await _secureStorage.read(key: TOKEN);
+    if (secureToken != null && secureToken.isNotEmpty) {
+      _cachedToken = secureToken;
+    } else {
+      // First run after update — migrate legacy plain-text token.
+      final legacyToken = _sharedPreferences.getString(TOKEN);
+      if (legacyToken != null && legacyToken.isNotEmpty) {
+        _cachedToken = legacyToken;
+        await _secureStorage.write(key: TOKEN, value: legacyToken);
+        await _sharedPreferences.remove(TOKEN);
+      }
+    }
   }
 
   String get email => _sharedPreferences.getString(EMAIL) ?? '';
@@ -22,7 +49,9 @@ class SettingProvider {
   String get profileUrl => _sharedPreferences.getString(IMAGE) ?? '';
   String get loginType => _sharedPreferences.getString(TYPE) ?? '';
 
-  String? get token => _sharedPreferences.getString(TOKEN);
+  // Falls back to SharedPreferences during the migration window before
+  // initSecureToken() completes on first run after update.
+  String? get token => _cachedToken ?? _sharedPreferences.getString(TOKEN);
 
   String? get fcmId => _sharedPreferences.getString(FCMTOKEN);
 
@@ -89,6 +118,13 @@ class SettingProvider {
     userProvider.setLoginType('');
     userProvider.setReferCode('');
     userProvider.setCountrycode('');
+
+    // Clear payment gateway secrets from memory
+    context.read<CartProvider>().clearPaymentSecrets();
+    context.read<SystemProvider>().clearPaymentSecrets();
+
+    _cachedToken = null;
+    await _secureStorage.delete(key: TOKEN);
     await _sharedPreferences.clear();
     setPrefrenceBool(ISFIRSTTIME, true);
     setPrefrence(APP_THEME, getTheme!);
@@ -117,7 +153,7 @@ class SettingProvider {
       String? image,
       String? type,
       String? referCode,
-      String? token,
+      String? authToken,
       String? countryCode,
       BuildContext context) async {
     final waitList = <Future<void>>[];
@@ -134,8 +170,9 @@ class SettingProvider {
     waitList.add(_sharedPreferences.setString(IMAGE, image ?? ''));
     waitList.add(_sharedPreferences.setString(TYPE, type ?? ''));
     waitList.add(_sharedPreferences.setString(REFERCODE, referCode ?? ''));
-    if (token != null) {
-      waitList.add(_sharedPreferences.setString(TOKEN, token));
+    if (authToken != null) {
+      _cachedToken = authToken;
+      waitList.add(_secureStorage.write(key: TOKEN, value: authToken));
     }
     waitList.add(_sharedPreferences.setString(COUNTRY_CODE, countryCode ?? ''));
 

@@ -24,7 +24,6 @@ class SessionManager {
 
       context.read<ProductDetailProvider>().setcompareList([]);
       final fcmId = globalSettingsProvider?.fcmId;
-      print("fcmId $fcmId");
 
       try {
         await NotificationRepository.updateFcmID(parameter: {
@@ -32,9 +31,7 @@ class SessionManager {
           'device_type': '-',
           'is_logout': '1',
         });
-      } catch (e) {
-        print("Logout error while updating FCM: $e");
-      }
+      } catch (_) {}
 
       final settingProvider =
           Provider.of<SettingProvider>(context, listen: false);

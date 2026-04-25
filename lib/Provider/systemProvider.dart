@@ -308,4 +308,14 @@ class SystemProvider extends ChangeNotifier {
       }
     } catch (e) {}
   }
+
+  /// Zeros all payment gateway secret keys from memory after the payment
+  /// flow ends (success or failure) and on user logout.
+  void clearPaymentSecrets() {
+    stripeSecretKey = null;
+    midtransServerKey = null;
+    myfatoorahToken = null;
+    phonePeClientSecret = null;
+    paytmMerchantKey = null;
+  }
 }

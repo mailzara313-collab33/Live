@@ -1136,4 +1136,14 @@ class CartProvider extends ChangeNotifier {
       update();
     }
   }
+
+  /// Zeros all payment gateway secret keys from memory after the payment
+  /// flow ends (success or failure) and on user logout.
+  void clearPaymentSecrets() {
+    stripeSecret = null;
+    paytmMerKey = null;
+    phonePeClientSecret = null;
+    midtransServerKey = null;
+    myfatoorahToken = null;
+  }
 }
