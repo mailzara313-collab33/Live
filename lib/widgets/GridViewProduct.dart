@@ -540,92 +540,107 @@ class _GridViewProductListWidgetState extends State<GridViewProductListWidget> {
             controllerText.text = '0';
           }
 
-          return InkWell(
-            child: Card(
-              shape: RoundedRectangleBorder(
-                side: BorderSide(
-                  color: Theme.of(context).colorScheme.gray,
-                  width: 1,
-                ),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              elevation: 0.2,
-              margin: EdgeInsetsDirectional.only(
-                bottom: 10,
-                end: 10,
-                start: widget.pad ? 10 : 0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // Product image section
-                  Expanded(child: _buildImageSection(productmodel, width)),
-                  // Product info section (name and pricing)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      start: 5.0,
-                      top: 8,
-                      end: 5,
-                      bottom: 5,
-                    ),
-                    child: _buildProductInfo(productmodel),
-                  ),
-                  // Cart button section
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: 8.0,
-                      right: 8.0,
-                      bottom: 8.0,
-                    ),
-                    child: CommonAddCartSection(
-                      controller: controllerText,
-                      model: productmodel,
-                      onAddToCart: () {
-                        addToCart(
-                          widget.index!,
-                          (int.parse(controllerText.text) +
-                                  int.parse(productmodel.qtyStepSize!))
-                              .toString(),
-                          1,
-                        );
-                      },
-                      onRemoveFromCart: () {
-                        removeFromCart(widget.index!);
-                      },
-                      onUpdateCart: () {
-                        addToCart(
-                          widget.index!,
-                          (int.parse(controllerText.text) +
-                                  int.parse(productmodel.qtyStepSize!))
-                              .toString(),
-                          2,
-                        );
-                      },
-                      itemsCounter: productmodel.itemsCounter!,
-                      onQuantitySelected: (String value) {
-                        addToCart(widget.index!, value, 2);
-                      },
-                      isProgress: isProgress,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            onTap: () {
-              Product model = widget.productList![widget.index!];
-              Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => ProductDetail(
-                    model: model,
-                    index: widget.index,
-                    secPos: 0,
-                    list: true,
-                  ),
+          // Kart scroll'da fade-up animasyonu (hafif, saf Flutter)
+          return TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 380),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, 18 * (1 - value)),
+                  child: child,
                 ),
               );
             },
+            child: InkWell(
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.gray,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                elevation: 0.2,
+                margin: EdgeInsetsDirectional.only(
+                  bottom: 10,
+                  end: 10,
+                  start: widget.pad ? 10 : 0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // Product image section
+                    Expanded(child: _buildImageSection(productmodel, width)),
+                    // Product info section (name and pricing)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 5.0,
+                        top: 8,
+                        end: 5,
+                        bottom: 5,
+                      ),
+                      child: _buildProductInfo(productmodel),
+                    ),
+                    // Cart button section
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: 8.0,
+                        right: 8.0,
+                        bottom: 8.0,
+                      ),
+                      child: CommonAddCartSection(
+                        controller: controllerText,
+                        model: productmodel,
+                        onAddToCart: () {
+                          addToCart(
+                            widget.index!,
+                            (int.parse(controllerText.text) +
+                                    int.parse(productmodel.qtyStepSize!))
+                                .toString(),
+                            1,
+                          );
+                        },
+                        onRemoveFromCart: () {
+                          removeFromCart(widget.index!);
+                        },
+                        onUpdateCart: () {
+                          addToCart(
+                            widget.index!,
+                            (int.parse(controllerText.text) +
+                                    int.parse(productmodel.qtyStepSize!))
+                                .toString(),
+                            2,
+                          );
+                        },
+                        itemsCounter: productmodel.itemsCounter!,
+                        onQuantitySelected: (String value) {
+                          addToCart(widget.index!, value, 2);
+                        },
+                        isProgress: isProgress,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              onTap: () {
+                Product model = widget.productList![widget.index!];
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => ProductDetail(
+                      model: model,
+                      index: widget.index,
+                      secPos: 0,
+                      list: true,
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         },
       );

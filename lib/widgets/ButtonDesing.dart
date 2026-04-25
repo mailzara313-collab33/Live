@@ -5,17 +5,17 @@ import 'package:flutter/material.dart';
 import '../Helper/Color.dart';
 import '../Helper/Constant.dart';
 
-// ignore: must_be_immutable
-class SimBtn extends StatelessWidget {
+// Ana buton — hover/tap scale animasyonu (1.0 → 1.05)
+class SimBtn extends StatefulWidget {
   final String? title;
   final VoidCallback? onBtnSelected;
-  double? size;
-  double? height;
-  double? paddingvalue;
-  Color? backgroundColor, borderColor, titleFontColor;
-  double? borderWidth, borderRadius;
+  final double? size;
+  final double? height;
+  final double? paddingvalue;
+  final Color? backgroundColor, borderColor, titleFontColor;
+  final double? borderWidth, borderRadius;
 
-  SimBtn({
+  const SimBtn({
     super.key,
     this.title,
     this.onBtnSelected,
@@ -30,54 +30,91 @@ class SimBtn extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    size = MediaQuery.of(context).size.width * size!;
-    return _buildBtnAnimation(context);
+  State<SimBtn> createState() => _SimBtnState();
+}
+
+class _SimBtnState extends State<SimBtn>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _scaleCtrl;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut),
+    );
   }
 
-  Widget _buildBtnAnimation(BuildContext context) {
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double computedSize =
+        MediaQuery.of(context).size.width * widget.size!;
+
+    return GestureDetector(
+      onTapDown: (_) => _scaleCtrl.forward(),
+      onTapUp: (_) => _scaleCtrl.reverse(),
+      onTapCancel: () => _scaleCtrl.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnim,
+        child: _buildBtn(context, computedSize),
+      ),
+    );
+  }
+
+  Widget _buildBtn(BuildContext context, double size) {
     return CupertinoButton(
-      padding: paddingvalue != null ? EdgeInsets.all(paddingvalue!) : null,
+      padding: widget.paddingvalue != null
+          ? EdgeInsets.all(widget.paddingvalue!)
+          : null,
       child: Container(
         width: size,
-        height: height ?? 35,
+        height: widget.height ?? 35,
         alignment: FractionalOffset.center,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [colors.grad1Color, colors.grad2Color],
-              stops: [0, 1]),
-          color: backgroundColor ?? colors.primary,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [colors.grad1Color, colors.grad2Color],
+            stops: [0, 1],
+          ),
+          color: widget.backgroundColor ?? colors.primary,
           borderRadius: BorderRadius.all(
-            Radius.circular(
-              borderRadius ?? 0.0,
-            ),
+            Radius.circular(widget.borderRadius ?? 0.0),
           ),
           border: Border.all(
-            width: borderWidth ?? 0,
-            color: borderColor ?? Colors.transparent,
+            width: widget.borderWidth ?? 0,
+            color: widget.borderColor ?? Colors.transparent,
           ),
         ),
         child: Text(
-          title!,
+          widget.title!,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                color: titleFontColor ?? colors.whiteTemp,
+                color: widget.titleFontColor ?? colors.whiteTemp,
                 fontWeight: FontWeight.normal,
                 fontFamily: 'ubuntu',
               ),
         ),
       ),
       onPressed: () {
-        onBtnSelected!();
+        widget.onBtnSelected!();
       },
     );
   }
 }
 
-// appbtn
-
+// Giriş ekranı butonu
 class LoginButtons extends StatelessWidget {
   final String? label;
   final Color textColour;
@@ -99,8 +136,6 @@ class LoginButtons extends StatelessWidget {
           const EdgeInsetsDirectional.symmetric(vertical: 15, horizontal: 0),
       onPressed: () => onpressfunction(),
       child: Container(
-          // padding: EdgeInsets.zero,
-          // width: 90,
           height: 50,
           alignment: FractionalOffset.center,
           decoration: BoxDecoration(
@@ -194,7 +229,6 @@ class AppBtn extends StatelessWidget {
               ),
       ),
       onPressed: () {
-        //if it's not loading do the thing
         if (btnAnim!.value == initialWidth) {
           onBtnSelected!();
         }
