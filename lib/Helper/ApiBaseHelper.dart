@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:eshop_multivendor/Helper/curlLoggerInterceptor.dart';
 import 'package:eshop_multivendor/Helper/sessionManager.dart';
 import 'package:eshop_multivendor/main.dart';
+import 'package:flutter/foundation.dart';
 import '../widgets/security.dart';
 import 'Constant.dart';
 
@@ -22,6 +23,14 @@ class ApiException implements Exception {
 }
 
 class ApiBaseHelper {
+  static final Dio _sharedDio = _buildDio();
+
+  static Dio _buildDio() {
+    final d = Dio();
+    if (kDebugMode) d.interceptors.add(CurlLoggerInterceptor());
+    return d;
+  }
+
   //To download the attachment, using the dio
   Future<void> downloadFile({
     required String url,
@@ -52,15 +61,11 @@ class ApiBaseHelper {
 
   Future<dynamic> postAPICall(Uri url, Map? param) async {
     try {
-      final Dio dio = Dio();
-      dio.interceptors.add(CurlLoggerInterceptor());
-
-      // Use Dio to make the request with the interceptor
-      final dioResponse = await dio
+      final dioResponse = await _sharedDio
           .post(
             url.toString(),
             data: param?.isEmpty ?? true ? null : param,
-            options: dio_.Options(
+            options: Options(
               headers: headers,
               contentType: 'application/x-www-form-urlencoded',
             ),

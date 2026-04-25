@@ -89,7 +89,7 @@ Locale getLocaleFromLanguageCode(final String languageCode) {
 }
 
 //Time settings
-const int timeOut = 50;
+const int timeOut = 15;
 const int perPage = 10;
 
 //FontSize

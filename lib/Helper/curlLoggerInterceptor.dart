@@ -1,10 +1,11 @@
 import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Logs http.MultipartRequest as cURL command
-/// Use this for requests made with the http package instead of Dio
+/// Logs http.MultipartRequest as cURL command (debug builds only)
 void logHttpMultipartRequestAsCurl(http.MultipartRequest request) {
+  if (!kDebugMode) return;
   final method = request.method.toUpperCase();
   final url = request.url.toString();
   final headers = request.headers;

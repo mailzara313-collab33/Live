@@ -90,7 +90,7 @@ void main() async {
 
   SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  HttpOverrides.global = MyHttpOverrides();
+  if (kDebugMode) HttpOverrides.global = MyHttpOverrides();
 
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider<ThemeNotifier>(

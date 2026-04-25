@@ -220,25 +220,19 @@ class UserProvider extends ChangeNotifier {
     required String password,
   }) async {
     try {
-      print(
-        "🔴 deleteUserAccount called - userId: $userId, mobile: $mobileNumber",
-      );
       var parameter = {
         USER_ID: userId,
         MOBILE: mobileNumber,
         PASSWORD: password,
       };
-      print("🔴 API parameters: $parameter");
       Map<String, dynamic>? data;
       await UserRepository.deleteUserAccount(parameter: parameter).then((
         value,
       ) {
-        print("🔴 API response: $value");
         data = value;
       });
       return data;
     } catch (e) {
-      print("🔴 Error in deleteUserAccount: $e");
       return {'error': true, 'message': e.toString()};
     }
   }
@@ -247,19 +241,15 @@ class UserProvider extends ChangeNotifier {
     required String userId,
   }) async {
     try {
-      print("🔴 deleteSocialUserAccount called - userId: $userId");
       Map<String, dynamic> parameter = {USER_ID: userId};
-      print("🔴 API parameters: $parameter");
       Map<String, dynamic>? data;
       await UserRepository.deleteSocialUserAccount(parameter: parameter).then((
         value,
       ) {
-        print("🔴 API response: $value");
         data = value;
       });
       return data;
     } catch (e) {
-      print("🔴 Error in deleteSocialUserAccount: $e");
       return {'error': true, 'message': e.toString()};
     }
   }
