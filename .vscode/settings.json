@@ -1,0 +1,5 @@
+{
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "dart.flutterSdkPath": ".fvm/versions/3.38.3",
+  "claudeCodeChat.permissions.yoloMode": false
+}
