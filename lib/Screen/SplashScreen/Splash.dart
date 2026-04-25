@@ -17,7 +17,7 @@ import '../../Helper/String.dart';
 import '../../widgets/desing.dart';
 import '../../widgets/systemChromeSettings.dart';
 
-//splash screen of app
+// PetCep açılış ekranı
 class Splash extends StatefulWidget {
   const Splash({super.key});
 
@@ -27,6 +27,8 @@ class Splash extends StatefulWidget {
 
 class _SplashScreen extends State<Splash> with TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // NoInternet ekranı için mevcut controller (değiştirilmedi)
   late AnimationController buttonController;
   late Animation buttonSqueezeanimation;
   bool from = false;
@@ -36,25 +38,66 @@ class _SplashScreen extends State<Splash> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 200),
   );
 
+  // PetCep açılış animasyon controller'ları
+  late AnimationController _splashController;
+  late Animation<double> _logoScale;
+  late Animation<double> _titleFade;
+  late Animation<double> _sloganFade;
+
   @override
   void initState() {
+    super.initState();
+
     buttonController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
 
+    // Açılış animasyonu — toplam 1800ms, hafif ve akıcı
+    _splashController = AnimationController(
+      duration: const Duration(milliseconds: 1800),
+      vsync: this,
+    );
+
+    // Logo: 0.9 → 1.0 scale-in (easeOutBack ile hafif sıçrama)
+    _logoScale = Tween<double>(begin: 0.88, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _splashController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
+      ),
+    );
+
+    // "PetCep" yazısı: fade-in
+    _titleFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _splashController,
+        curve: const Interval(0.28, 0.62, curve: Curves.easeIn),
+      ),
+    );
+
+    // Slogan: fade-in (başlıktan biraz sonra)
+    _sloganFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _splashController,
+        curve: const Interval(0.52, 0.88, curve: Curves.easeIn),
+      ),
+    );
+
+    _splashController.forward();
+
     Future.delayed(Duration.zero, () {
       SystemChromeSettings.setSystemChromes(
-          isDarkTheme: Provider.of<ThemeNotifier>(context, listen: false)
-                  .getThemeMode() ==
-              ThemeMode.dark);
+        isDarkTheme:
+            Provider.of<ThemeNotifier>(context, listen: false).getThemeMode() ==
+                ThemeMode.dark,
+      );
     });
+
     initializeAnimationController();
+
     Future.delayed(Duration.zero, () {
       context.read<AppSettingsCubit>().fetchAndStoreAppSettings();
     });
-
-    super.initState();
   }
 
   void initializeAnimationController() {
@@ -72,23 +115,33 @@ class _SplashScreen extends State<Splash> with TickerProviderStateMixin {
   }
 
   @override
+  void dispose() {
+    _splashController.dispose();
+    buttonController.dispose();
+    navigationContainerAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     deviceHeight = MediaQuery.of(context).size.height;
     deviceWidth = MediaQuery.of(context).size.width;
+
+    // NoInternet ekranı için animasyon (mevcut mantık korundu)
     buttonSqueezeanimation = Tween(
       begin: MediaQuery.of(context).size.width * 0.7,
       end: 50.0,
     ).animate(
       CurvedAnimation(
         parent: buttonController,
-        curve: const Interval(
-          0.0,
-          0.150,
-        ),
+        curve: const Interval(0.0, 0.150),
       ),
     );
+
     return Scaffold(
       key: _scaffoldKey,
+      // PetCep krem arka plan
+      backgroundColor: const Color(0xFFFFF8F0),
       body: BlocConsumer<AppSettingsCubit, AppSettingsState>(
         listener: (context, state) {
           if (state is AppSettingsSuccess) {
@@ -96,86 +149,98 @@ class _SplashScreen extends State<Splash> with TickerProviderStateMixin {
           }
         },
         builder: (context, state) {
+          // Hata durumları (mevcut mantık korundu)
           if (state is AppSettingsFailure) {
             if (state.message.contains('No Internet connection')) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 50),
                   child: NoInterNet(
-                      buttonController: buttonController,
-                      buttonSqueezeanimation: buttonSqueezeanimation,
-                      setStateNoInternate: () {
-                        buttonController.forward().then((value) {
-                          buttonController.value = 0;
-                          context
-                              .read<AppSettingsCubit>()
-                              .fetchAndStoreAppSettings();
-                        });
-                      }),
+                    buttonController: buttonController,
+                    buttonSqueezeanimation: buttonSqueezeanimation,
+                    setStateNoInternate: () {
+                      buttonController.forward().then((value) {
+                        buttonController.value = 0;
+                        context
+                            .read<AppSettingsCubit>()
+                            .fetchAndStoreAppSettings();
+                      });
+                    },
+                  ),
                 ),
               );
             }
             return Center(
               child: ErrorContainer(
-                  onTapRetry: () {
-                    context.read<AppSettingsCubit>().fetchAndStoreAppSettings();
-                  },
-                  errorMessage: state.message),
+                onTapRetry: () {
+                  context.read<AppSettingsCubit>().fetchAndStoreAppSettings();
+                },
+                errorMessage: state.message,
+              ),
             );
           }
-          return Stack(
-            children: <Widget>[
-              Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: DesignConfiguration.back(),
-                child: Center(
-                  child: Container(
-                    padding: EdgeInsetsDirectional.symmetric(
-                        vertical: 20, horizontal: 10),
-                    decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            blurRadius: 5.0,
-                          ),
-                        ],
-                        borderRadius: BorderRadius.all(
-                            Radius.circular(circularBorderRadius10))),
-                    child: SvgPicture.asset(
-                      DesignConfiguration.setSvgPath(Assets.splashlogo),
-                      // fit: BoxFit.fill,
-                      width: 100,
-                      height: 100,
-                    ),
-                  ),
+
+          // PetCep açılış ekranı
+          return _buildSplashContent();
+        },
+      ),
+    );
+  }
+
+  Widget _buildSplashContent() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Logo — scale-in animasyonu
+          ScaleTransition(
+            scale: _logoScale,
+            child: SvgPicture.asset(
+              DesignConfiguration.setSvgPath(Assets.splashlogo),
+              width: 145,
+              height: 145,
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // "PetCep" başlığı — fade-in
+          FadeTransition(
+            opacity: _titleFade,
+            child: const Text(
+              'PetCep',
+              style: TextStyle(
+                fontFamily: 'ubuntu',
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFFF7A00),
+                letterSpacing: 2.0,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Slogan — fade-in
+          FadeTransition(
+            opacity: _sloganFade,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 36),
+              child: Text(
+                'Evcil dostun için her şey cebinde',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'ubuntu',
+                  fontSize: 14,
+                  color: Color(0xFF1F2937),
+                  letterSpacing: 0.3,
+                  height: 1.4,
                 ),
               ),
-              Image.asset(
-                DesignConfiguration.setPngPath(Assets.doodle),
-                // fit: BoxFit.fill,
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        DesignConfiguration.setSvgPath(Assets.wrteamLogo),
-                        // fit: BoxFit.fill,
-                        width: 40,
-                        height: 40,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -186,18 +251,14 @@ class _SplashScreen extends State<Splash> with TickerProviderStateMixin {
 
     bool isFirstTime = await settingsProvider.getPrefrenceBool(ISFIRSTTIME);
     if (isFirstTime) {
-      setState(
-        () {
-          from = true;
-        },
-      );
+      setState(() {
+        from = true;
+      });
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      setState(
-        () {
-          from = false;
-        },
-      );
+      setState(() {
+        from = false;
+      });
       Navigator.pushReplacement(
         context,
         CupertinoPageRoute(

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 // ignore: camel_case_extensions
 extension colors on ColorScheme {
   static MaterialColor primary_app = const MaterialColor(
-    0xffFC6A57,
+    0xffFF7A00,
     <int, Color>{
       50: primary,
       100: primary,
@@ -18,8 +18,10 @@ extension colors on ColorScheme {
     },
   );
 
-  static const Color primary = Color(0xffFC6A57);
-  static const Color secondary = Color(0xffFDC994);
+  // PetCep brand palette
+  static const Color primary = Color(0xffFF7A00);   // Turuncu
+  static const Color secondary = Color(0xff2EC4B6); // Teal
+  static const Color accent = Color(0xffFFD166);    // Altın sarısı
 
   Color get btnColor => brightness == Brightness.dark ? whiteTemp : primary;
 
@@ -27,14 +29,14 @@ extension colors on ColorScheme {
       brightness == Brightness.dark ? secondary : primary;
 
   Color get lightWhite =>
-      brightness == Brightness.dark ? darkColor : const Color(0xffEEF2F9);
+      brightness == Brightness.dark ? darkColor : const Color(0xffFFF8F0);
 
   Color get blue => brightness == Brightness.dark
       ? const Color(0xff8381d5)
       : const Color(0xff4543c1);
 
   Color get fontColor =>
-      brightness == Brightness.dark ? whiteTemp : const Color(0xff222222);
+      brightness == Brightness.dark ? whiteTemp : const Color(0xff1F2937);
 
   Color get gray =>
       brightness == Brightness.dark ? darkColor3 : const Color(0xfff0f0f0);
@@ -47,10 +49,10 @@ extension colors on ColorScheme {
 
   static Color darkIcon = const Color(0xff9B9B9B);
 
-  static const Color grad1Color = Color(0xffFFBD69);
-  static const Color grad2Color = Color(0xffFF6363);
-  static const Color lightWhite2 = Color(0xffEEF2F3);
-//  static const Color lightWhite = Color(0xffEEF2F3);
+  static const Color grad1Color = Color(0xffFF7A00); // Turuncu başlangıç
+  static const Color grad2Color = Color(0xffFFD166); // Altın bitiş
+
+  static const Color lightWhite2 = Color(0xffFFF8F0);
 
   static const Color yellow = Color(0xfffdd901);
   static const Color green = Colors.green;
@@ -81,7 +83,7 @@ extension colors on ColorScheme {
 
   static const Color black54 = Colors.black54;
   static const Color black12 = Colors.black12;
-  static const Color disableColor = Color(0xffEEF2F9);
+  static const Color disableColor = Color(0xffFFF8F0);
 
   static const Color blackTemp = Color(0xff000000);
 
