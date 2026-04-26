@@ -1,0 +1,164 @@
+name: Build Release APK
+
+on:
+  workflow_dispatch:          # manual trigger from GitHub Actions tab
+    inputs:
+      flutter_version:
+        description: 'Flutter version to use'
+        required: false
+        default: '3.27.4'
+  push:
+    branches:
+      - claude/devsecops-audit-pipeline-6EiSk
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # --------------------------------------------------------
+      # 1. Checkout
+      # --------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # 2. Java 17 (required by AGP 8 / compileSdkVersion 36)
+      # --------------------------------------------------------
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # --------------------------------------------------------
+      # 3. Flutter SDK
+      # --------------------------------------------------------
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.27.4' }}
+          channel: stable
+          cache: true
+
+      # --------------------------------------------------------
+      # 4. Android SDK extras (NDK + compile SDK 36)
+      # --------------------------------------------------------
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;35.0.0" \
+            "ndk;28.2.13676358" > /dev/null 2>&1 || true
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      # --------------------------------------------------------
+      # 5. Mock google-services.json for CI
+      #    (Firebase compilation requires the file; real keys
+      #     are not needed to produce an APK)
+      # --------------------------------------------------------
+      - name: Create mock google-services.json
+        run: |
+          cat > android/app/google-services.json <<'GSEOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-mock-project",
+              "storage_bucket": "ci-mock-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "eShop.multivendor.customer"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "ci-mock-api-key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          GSEOF
+
+      # --------------------------------------------------------
+      # 6. Flutter dependencies
+      # --------------------------------------------------------
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      # --------------------------------------------------------
+      # 7. Optional: run analyzer (non-blocking — info only)
+      # --------------------------------------------------------
+      - name: Flutter analyze (informational)
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos || true
+
+      # --------------------------------------------------------
+      # 8. Build release APK
+      #    signingConfig is already set to debug in build.gradle
+      #    so no keystore secrets are required.
+      # --------------------------------------------------------
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --obfuscate \
+            --split-debug-info=./debug-info/ \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL || 'https://example.com/api' }} \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY || 'ci-placeholder' }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID || '1:0:android:0' }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID || 'ci-mock-project' }}
+
+      # --------------------------------------------------------
+      # 9. Upload APK artifact (downloadable for 14 days)
+      # --------------------------------------------------------
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      # --------------------------------------------------------
+      # 10. Upload debug symbols (for crash symbolication)
+      # --------------------------------------------------------
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: debug-symbols-${{ github.sha }}
+          path: debug-info/
+          retention-days: 90
+
+      # --------------------------------------------------------
+      # 11. Print APK size summary
+      # --------------------------------------------------------
+      - name: APK build summary
+        if: always()
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          if [ -f "$APK" ]; then
+            SIZE=$(du -sh "$APK" | cut -f1)
+            echo "### APK Build Successful" >> $GITHUB_STEP_SUMMARY
+            echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+            echo "| app-release.apk | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### APK Build FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
