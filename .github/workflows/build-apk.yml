@@ -14,13 +14,6 @@ on:
       - '**.md'
       - 'docs/**'
 
-env:
-  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.27.4' }}
-  API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://ci.example.com/api' }}
-  FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY || 'ci-placeholder' }}
-  FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID || '1:000000000000:android:0000000000000000' }}
-  FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'ci-mock-project' }}
-
 jobs:
   build-apk:
     name: Build APK
@@ -40,23 +33,33 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.27.4' }}
           channel: stable
           cache: true
 
-      - name: Install Android SDK components
+      - name: Show environment info
+        run: |
+          flutter --version
+          java -version
+          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          sdkmanager --list_installed 2>/dev/null | grep -E 'ndk|platforms|build-tools' || true
+
+      - name: Install Android SDK extras
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-36" "build-tools;35.0.0" || true
-          # Install exact NDK version required by build.gradle
-          sdkmanager "ndk;28.2.13676358" || \
-            sdkmanager "ndk;27.0.12077973" || \
-            echo "NDK install skipped — Gradle will auto-download"
+          sdkmanager "platforms;android-36" || echo "platforms;android-36 install failed"
+          sdkmanager "build-tools;35.0.0" || echo "build-tools install failed"
+          sdkmanager "ndk;28.2.13676358" || echo "NDK 28.2 not available, trying 27.0"
+          sdkmanager "ndk;27.0.12077973" || echo "NDK 27.0 not available either"
+          # Let Gradle auto-download the exact NDK if neither is available
+          sdkmanager --list_installed 2>/dev/null | grep ndk || echo "No NDK installed — Gradle will download"
 
       - name: Create mock google-services.json
         run: |
           mkdir -p android/app
-          printf '%s' '{
+          cat > android/app/google-services.json << 'EOF'
+{
   "project_info": {
     "project_number": "000000000000",
     "project_id": "ci-mock-project",
@@ -76,17 +79,23 @@ jobs:
     }
   ],
   "configuration_version": "1"
-}' > android/app/google-services.json
-          echo "google-services.json created:"
+}
+EOF
+          echo "=== google-services.json ==="
           cat android/app/google-services.json
 
       - name: Flutter pub get
-        run: flutter pub get
+        run: flutter pub get --verbose
 
       - name: Flutter analyze (non-blocking)
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos || true
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos 2>&1 || true
 
       - name: Build release APK
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://ci.example.com/api' }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY || 'ci-placeholder' }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID || '1:000000000000:android:0000000000000000' }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'ci-mock-project' }}
         run: |
           flutter build apk --release \
             --obfuscate \
@@ -94,22 +103,19 @@ jobs:
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
             --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" \
-            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
+            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
+            -v 2>&1
 
       - name: Show APK info
         if: success()
         run: |
-          APK=build/app/outputs/flutter-apk/app-release.apk
-          ls -lh "$APK"
-          SIZE=$(du -sh "$APK" | cut -f1)
-          echo "APK Size: $SIZE"
-          echo "### Build Successful" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          echo "| app-release.apk | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          ls -lh build/app/outputs/flutter-apk/
+          SIZE=$(du -sh build/app/outputs/flutter-apk/app-release.apk | cut -f1)
+          echo "### APK Build Successful - Size: $SIZE" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: app-release-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-release.apk
