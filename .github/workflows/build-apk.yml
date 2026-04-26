@@ -2,17 +2,9 @@ name: Build Release APK
 
 on:
   workflow_dispatch:
-    inputs:
-      flutter_version:
-        description: 'Flutter version'
-        required: false
-        default: '3.27.4'
   push:
     branches:
       - claude/devsecops-audit-pipeline-6EiSk
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
 
 jobs:
   build-apk:
@@ -28,90 +20,80 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ github.event.inputs.flutter_version || '3.27.4' }}
+          flutter-version: "3.27.4"
           channel: stable
           cache: true
 
-      - name: Show environment info
+      - name: Show environment
         run: |
           flutter --version
           java -version
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          sdkmanager --list_installed 2>/dev/null | grep -E 'ndk|platforms|build-tools' || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          sdkmanager --list_installed 2>/dev/null | grep -E 'ndk|platforms' || true
 
       - name: Install Android SDK extras
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-36" || echo "platforms;android-36 install failed"
-          sdkmanager "build-tools;35.0.0" || echo "build-tools install failed"
-          sdkmanager "ndk;28.2.13676358" || echo "NDK 28.2 not available, trying 27.0"
-          sdkmanager "ndk;27.0.12077973" || echo "NDK 27.0 not available either"
-          # Let Gradle auto-download the exact NDK if neither is available
-          sdkmanager --list_installed 2>/dev/null | grep ndk || echo "No NDK installed — Gradle will download"
+          sdkmanager "platforms;android-36" || true
+          sdkmanager "build-tools;35.0.0" || true
+          sdkmanager "ndk;28.2.13676358" || sdkmanager "ndk;27.0.12077973" || echo "NDK will be auto-downloaded by Gradle"
 
       - name: Create mock google-services.json
         run: |
           mkdir -p android/app
-          cat > android/app/google-services.json << 'EOF'
-{
-  "project_info": {
-    "project_number": "000000000000",
-    "project_id": "ci-mock-project",
-    "storage_bucket": "ci-mock-project.appspot.com"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
-        "android_client_info": {
-          "package_name": "eShop.multivendor.customer"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [{"current_key": "ci-mock-api-key"}],
-      "services": {"appinvite_service": {"other_platform_oauth_client": []}}
-    }
-  ],
-  "configuration_version": "1"
+          python3 -c "
+import json, os
+data = {
+  'project_info': {'project_number': '000000000000', 'project_id': 'ci-mock', 'storage_bucket': 'ci-mock.appspot.com'},
+  'client': [{
+    'client_info': {
+      'mobilesdk_app_id': '1:000000000000:android:0000000000000000000000',
+      'android_client_info': {'package_name': 'eShop.multivendor.customer'}
+    },
+    'oauth_client': [],
+    'api_key': [{'current_key': 'ci-mock-key'}],
+    'services': {'appinvite_service': {'other_platform_oauth_client': []}}
+  }],
+  'configuration_version': '1'
 }
-EOF
-          echo "=== google-services.json ==="
-          cat android/app/google-services.json
+with open('android/app/google-services.json', 'w') as f:
+  json.dump(data, f, indent=2)
+print('google-services.json OK')
+"
 
       - name: Flutter pub get
-        run: flutter pub get --verbose
+        run: flutter pub get
 
-      - name: Flutter analyze (non-blocking)
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos 2>&1 || true
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos || true
 
       - name: Build release APK
         env:
-          API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://ci.example.com/api' }}
-          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY || 'ci-placeholder' }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID || '1:000000000000:android:0000000000000000' }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'ci-mock-project' }}
+          SECRETS_API_URL: ${{ secrets.API_BASE_URL }}
+          SECRETS_FB_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          SECRETS_FB_APP: ${{ secrets.FIREBASE_APP_ID }}
+          SECRETS_FB_PROJ: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
+          API_URL="${SECRETS_API_URL:-https://ci.example.com/api}"
+          FB_KEY="${SECRETS_FB_KEY:-ci-placeholder}"
+          FB_APP="${SECRETS_FB_APP:-1:000000000000:android:0000000000000000}"
+          FB_PROJ="${SECRETS_FB_PROJ:-ci-mock-project}"
           flutter build apk --release \
             --obfuscate \
             --split-debug-info=./debug-info/ \
-            --dart-define=API_BASE_URL="$API_BASE_URL" \
-            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
-            --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" \
-            --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-            -v 2>&1
+            --dart-define=API_BASE_URL="$API_URL" \
+            --dart-define=FIREBASE_API_KEY="$FB_KEY" \
+            --dart-define=FIREBASE_APP_ID="$FB_APP" \
+            --dart-define=FIREBASE_PROJECT_ID="$FB_PROJ"
 
-      - name: Show APK info
+      - name: APK info
         if: success()
-        run: |
-          ls -lh build/app/outputs/flutter-apk/
-          SIZE=$(du -sh build/app/outputs/flutter-apk/app-release.apk | cut -f1)
-          echo "### APK Build Successful - Size: $SIZE" >> $GITHUB_STEP_SUMMARY
+        run: ls -lh build/app/outputs/flutter-apk/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
