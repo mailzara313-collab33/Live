@@ -52,7 +52,7 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build release APK
+      - name: Build APK
         env:
           SECRETS_API_URL: ${{ secrets.API_BASE_URL }}
           SECRETS_FB_KEY: ${{ secrets.FIREBASE_API_KEY }}
