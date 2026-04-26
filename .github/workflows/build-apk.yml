@@ -41,30 +41,10 @@ jobs:
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager "platforms;android-36" || true
           sdkmanager "build-tools;35.0.0" || true
-          sdkmanager "ndk;28.2.13676358" || sdkmanager "ndk;27.0.12077973" || echo "NDK will be auto-downloaded by Gradle"
+          sdkmanager "ndk;28.2.13676358" || sdkmanager "ndk;27.0.12077973" || echo "NDK auto-download by Gradle"
 
       - name: Create mock google-services.json
-        run: |
-          mkdir -p android/app
-          python3 -c "
-import json, os
-data = {
-  'project_info': {'project_number': '000000000000', 'project_id': 'ci-mock', 'storage_bucket': 'ci-mock.appspot.com'},
-  'client': [{
-    'client_info': {
-      'mobilesdk_app_id': '1:000000000000:android:0000000000000000000000',
-      'android_client_info': {'package_name': 'eShop.multivendor.customer'}
-    },
-    'oauth_client': [],
-    'api_key': [{'current_key': 'ci-mock-key'}],
-    'services': {'appinvite_service': {'other_platform_oauth_client': []}}
-  }],
-  'configuration_version': '1'
-}
-with open('android/app/google-services.json', 'w') as f:
-  json.dump(data, f, indent=2)
-print('google-services.json OK')
-"
+        run: mkdir -p android/app && python3 -c "import json; open('android/app/google-services.json','w').write(json.dumps({'project_info':{'project_number':'000000000000','project_id':'ci-mock','storage_bucket':'ci-mock.appspot.com'},'client':[{'client_info':{'mobilesdk_app_id':'1:000000000000:android:0000000000000000000000','android_client_info':{'package_name':'eShop.multivendor.customer'}},'oauth_client':[],'api_key':[{'current_key':'ci-mock-key'}],'services':{'appinvite_service':{'other_platform_oauth_client':[]}}}],'configuration_version':'1'},indent=2))" && echo 'google-services.json OK'
 
       - name: Flutter pub get
         run: flutter pub get
