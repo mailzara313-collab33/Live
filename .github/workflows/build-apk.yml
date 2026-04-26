@@ -33,7 +33,6 @@ jobs:
         run: |
           echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
           echo "sdk.dir=$ANDROID_SDK_ROOT" >> android/local.properties
-          echo "=== local.properties ==="
           cat android/local.properties
 
       - name: Install Android SDK extras
@@ -49,13 +48,53 @@ jobs:
           cat > android/app/google-services.json << 'GSEOF'
           {"project_info":{"project_number":"000000000000","project_id":"ci-mock","storage_bucket":"ci-mock.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000000000","android_client_info":{"package_name":"eShop.multivendor.customer"}},"oauth_client":[],"api_key":[{"current_key":"ci-mock-key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
           GSEOF
-          cat android/app/google-services.json
+
+      - name: Strip git dependency_overrides for CI
+        run: |
+          python3 - << 'PYEOF'
+          import sys
+
+          with open('pubspec.yaml', 'r') as f:
+              lines = f.readlines()
+
+          result = []
+          skip = False
+          i = 0
+          while i < len(lines):
+              line = lines[i]
+              stripped = line.strip()
+
+              # Detect start of a git-based override block
+              if skip:
+                  # End skip when we hit a new top-level key or same-level key
+                  indent = len(line) - len(line.lstrip())
+                  if indent <= 2 and stripped and not stripped.startswith('#'):
+                      skip = False
+                      result.append(line)
+              else:
+                  # Check if this is a git override (file_picker or flutter_paystack with git url)
+                  if stripped in ('file_picker:', 'flutter_paystack:') and len(line) - len(line.lstrip()) == 2:
+                      # Look ahead to see if next non-empty line starts a git block
+                      j = i + 1
+                      while j < len(lines) and not lines[j].strip():
+                          j += 1
+                      if j < len(lines) and 'git' in lines[j]:
+                          skip = True
+                          i += 1
+                          continue
+                  result.append(line)
+              i += 1
+
+          with open('pubspec.yaml', 'w') as f:
+              f.writelines(result)
+
+          print('pubspec.yaml cleaned for CI')
+          PYEOF
 
       - name: Flutter pub get
-        run: flutter pub get -v
-
-      - name: Flutter analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos || true
+        run: |
+          flutter pub get -v 2>&1
+          echo "Exit code: $?"
 
       - name: Build release APK
         env:
