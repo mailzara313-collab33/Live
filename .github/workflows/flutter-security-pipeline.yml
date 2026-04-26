@@ -1,0 +1,206 @@
+name: Flutter Security Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ============================================================
+  # STAGE 1 — Secret Scanning
+  # ============================================================
+  secret-scan:
+    name: Secret Scan (TruffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  # ============================================================
+  # STAGE 2 — SAST (Dart/Flutter static analysis)
+  # ============================================================
+  sast:
+    name: SAST (Flutter Analyze)
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Flutter Analyze (fail on warnings)
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+  # ============================================================
+  # STAGE 2 — Dependency Audit / SCA (parallel with SAST)
+  # ============================================================
+  sca:
+    name: Dependency Audit (OSV Scanner)
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Generate pubspec.lock
+        run: flutter pub get
+
+      - name: OSV Scanner
+        uses: google/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock
+
+  # ============================================================
+  # STAGE 3 — Tests
+  # ============================================================
+  test:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    needs: [sast, sca]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test --coverage
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-coverage
+          path: coverage/lcov.info
+
+  # ============================================================
+  # STAGE 4 — Build (obfuscated release APK)
+  # ============================================================
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+          cache: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK (obfuscated)
+        run: |
+          flutter build apk --release \
+            --obfuscate \
+            --split-debug-info=./debug-info/ \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      # Debug symbols uploaded separately — NEVER ship with APK
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols
+          path: debug-info/
+          retention-days: 90
+
+  # ============================================================
+  # STAGE 5 — Mobile SAST (MobSF) on built APK
+  # ============================================================
+  mobsf:
+    name: Mobile SAST (MobSF)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+
+      - name: Start MobSF
+        run: |
+          docker run -d -p 8000:8000 \
+            --name mobsf \
+            opensecurity/mobile-security-framework-mobsf:latest
+          sleep 30
+
+      - name: Upload APK to MobSF
+        run: |
+          UPLOAD=$(curl -s -F "file=@app-release.apk" \
+            http://localhost:8000/api/v1/upload \
+            -H "Authorization: ${{ secrets.MOBSF_API_KEY }}")
+          HASH=$(echo $UPLOAD | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+          curl -s -X POST http://localhost:8000/api/v1/scan \
+            -H "Authorization: ${{ secrets.MOBSF_API_KEY }}" \
+            -d "scan_type=apk&file_name=app-release.apk&hash=$HASH"
+          # Get JSON report
+          curl -s -X POST http://localhost:8000/api/v1/report_json \
+            -H "Authorization: ${{ secrets.MOBSF_API_KEY }}" \
+            -d "hash=$HASH" > mobsf-report.json
+          # Fail if score below 60
+          SCORE=$(python3 -c "import json; d=json.load(open('mobsf-report.json')); print(d.get('appsec',{}).get('security_score',0))")
+          echo "MobSF Security Score: $SCORE"
+          [ "$SCORE" -ge 60 ] || (echo "MobSF score too low!" && exit 1)
+
+      - name: Upload MobSF Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobsf-report
+          path: mobsf-report.json
