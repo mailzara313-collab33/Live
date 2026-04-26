@@ -29,11 +29,12 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Show environment
+      - name: Create android/local.properties
         run: |
-          flutter --version
-          java -version
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
+          echo "sdk.dir=$ANDROID_SDK_ROOT" >> android/local.properties
+          echo "=== local.properties ==="
+          cat android/local.properties
 
       - name: Install Android SDK extras
         run: |
@@ -50,7 +51,7 @@ jobs:
           GSEOF
           cat android/app/google-services.json
 
-      - name: Flutter pub get (verbose)
+      - name: Flutter pub get
         run: flutter pub get -v
 
       - name: Flutter analyze
