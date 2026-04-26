@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:eshop_multivendor/Helper/Color.dart';
 import 'package:eshop_multivendor/Helper/Constant.dart';
 import 'package:eshop_multivendor/Provider/CartProvider.dart';
@@ -63,6 +62,7 @@ import 'Screen/Dashboard/Dashboard.dart';
 import 'firebase_options.dart';
 
 GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -84,13 +84,16 @@ void main() async {
           ),
         );
   }
+
   initializedDownload();
 
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  HttpOverrides.global = MyHttpOverrides();
+  // NOTE: MyHttpOverrides (SSL bypass) has been removed.
+  // All HTTPS connections now use proper certificate validation.
+  // See DevSecOps audit finding C-5.
 
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider<ThemeNotifier>(
@@ -175,19 +178,13 @@ void main() async {
     ChangeNotifierProvider<CustomerSupportProvider>(
         create: (context) => CustomerSupportProvider()),
     ChangeNotifierProvider<ChatProvider>(create: (context) => ChatProvider()),
-
-    ///
-    ///Chat feature related provides
-    ///
     BlocProvider<PersonalConverstationsCubit>(
         create: (context) => PersonalConverstationsCubit(ChatRepository())),
-    //cubit to get brand details on home page
     BlocProvider<BrandsListCubit>(
       create: (context) => BrandsListCubit(
         brandsRepository: BrandsRepository(),
       ),
     ),
-    //cubit for global app-settings management
     BlocProvider<AppSettingsCubit>(
       create: (context) => AppSettingsCubit(),
     ),
@@ -212,7 +209,7 @@ Future<void> initializedDownload() async {
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
-//to get token without using context
+// Global settings provider — used to access token without context
 SettingProvider? globalSettingsProvider;
 
 class MyApp extends StatefulWidget {
@@ -236,19 +233,15 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
-        statusBarColor: Theme.of(context)
-            .colorScheme
-            .lightWhite, // Change to your desired color
-        statusBarIconBrightness:
-            Brightness.dark, // For white icons on the status bar
+        statusBarColor: Theme.of(context).colorScheme.lightWhite,
+        statusBarIconBrightness: Brightness.dark,
       ),
     );
     final themeNotifier = Provider.of<ThemeNotifier>(context);
     final RouteObserver<ModalRoute<void>> routeObserver =
         RouteObserver<ModalRoute<void>>();
     return BlocBuilder<LanguageCubit, LanguageState>(
-        builder: (final BuildContext context,
-                final LanguageState languageState) =>
+        builder: (final BuildContext context, final LanguageState languageState) =>
             GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
@@ -285,7 +278,6 @@ class _MyAppState extends State<MyApp> {
                     cardColor: Theme.of(context).colorScheme.white,
                     dialogTheme: DialogThemeData(
                         backgroundColor: Theme.of(context).colorScheme.white),
-                    // dialogBackgroundColor: Theme.of(context).colorScheme.white,
                     iconTheme: Theme.of(context).iconTheme.copyWith(
                           color: colors.primary,
                         ),
@@ -320,9 +312,8 @@ class _MyAppState extends State<MyApp> {
                     useMaterial3: false,
                     canvasColor: colors.darkColor,
                     cardColor: colors.darkColor2,
-                    // dialogBackgroundColor: colors.darkColor2,
-                    dialogTheme: const DialogThemeData(
-                        backgroundColor: colors.darkColor2),
+                    dialogTheme:
+                        const DialogThemeData(backgroundColor: colors.darkColor2),
                     primaryColor: colors.darkColor,
                     textSelectionTheme: TextSelectionThemeData(
                       cursorColor: colors.darkIcon,
@@ -356,46 +347,34 @@ class _MyAppState extends State<MyApp> {
                     checkboxTheme: CheckboxThemeData(
                       fillColor: WidgetStateProperty.resolveWith<Color?>(
                           (Set<WidgetState> states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          return null;
-                        }
-                        if (states.contains(WidgetState.selected)) {
+                        if (states.contains(WidgetState.disabled)) return null;
+                        if (states.contains(WidgetState.selected))
                           return colors.primary;
-                        }
                         return null;
                       }),
                     ),
                     radioTheme: RadioThemeData(
                       fillColor: WidgetStateProperty.resolveWith<Color?>(
                           (Set<WidgetState> states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          return null;
-                        }
-                        if (states.contains(WidgetState.selected)) {
+                        if (states.contains(WidgetState.disabled)) return null;
+                        if (states.contains(WidgetState.selected))
                           return colors.primary;
-                        }
                         return null;
                       }),
                     ),
                     switchTheme: SwitchThemeData(
                       thumbColor: WidgetStateProperty.resolveWith<Color?>(
                           (Set<WidgetState> states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          return null;
-                        }
-                        if (states.contains(WidgetState.selected)) {
+                        if (states.contains(WidgetState.disabled)) return null;
+                        if (states.contains(WidgetState.selected))
                           return colors.primary;
-                        }
                         return null;
                       }),
                       trackColor: WidgetStateProperty.resolveWith<Color?>(
                           (Set<WidgetState> states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          return null;
-                        }
-                        if (states.contains(WidgetState.selected)) {
+                        if (states.contains(WidgetState.disabled)) return null;
+                        if (states.contains(WidgetState.selected))
                           return colors.primary;
-                        }
                         return null;
                       }),
                     ),
@@ -404,29 +383,17 @@ class _MyAppState extends State<MyApp> {
                 )));
   }
 }
-// }
-
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
-  }
-}
 
 class GlobalScrollBehavior extends ScrollBehavior {
   @override
   Widget buildScrollbar(
       BuildContext context, Widget child, ScrollableDetails details) {
-    // Optionally customize scrollbar behavior
     return child;
   }
 
   @override
   Widget buildOverscrollIndicator(
       BuildContext context, Widget child, ScrollableDetails details) {
-    // Optionally customize overscroll glow behavior
-    return child; // No glow effect
+    return child;
   }
 }
