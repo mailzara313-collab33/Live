@@ -7,6 +7,7 @@ import 'package:eshop_multivendor/Provider/productDetailProvider.dart';
 import 'package:eshop_multivendor/main.dart';
 import 'package:eshop_multivendor/repository/pushnotificationRepositry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +16,7 @@ class SessionManager {
   static bool _isLoggingOut = false;
 
   static Future<void> forceLogout(BuildContext context) async {
-    if (_isLoggingOut) return; // Prevent multiple calls
+    if (_isLoggingOut) return;
     _isLoggingOut = true;
 
     try {
@@ -23,8 +24,9 @@ class SessionManager {
       final GoogleSignIn googleSignIn = GoogleSignIn();
 
       context.read<ProductDetailProvider>().setcompareList([]);
+
       final fcmId = globalSettingsProvider?.fcmId;
-      print("fcmId $fcmId");
+      // FCM token intentionally not logged — sensitive device identifier
 
       try {
         await NotificationRepository.updateFcmID(parameter: {
@@ -33,7 +35,10 @@ class SessionManager {
           'is_logout': '1',
         });
       } catch (e) {
-        print("Logout error while updating FCM: $e");
+        // Log only in debug builds to avoid leaking internal errors in production
+        if (kDebugMode) {
+          debugPrint('Logout error while updating FCM: $e');
+        }
       }
 
       final settingProvider =
@@ -51,10 +56,9 @@ class SessionManager {
       settingProvider.clearUserSession(context);
       context.read<FavoriteProvider>().setFavlist([]);
 
-      // Navigate back to login screen
       Routes.navigateToLoginScreen(context, isPop: false);
     } finally {
-      _isLoggingOut = false; // reset once finished
+      _isLoggingOut = false;
     }
   }
 }
