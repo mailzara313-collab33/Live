@@ -33,8 +33,7 @@ jobs:
         run: |
           flutter --version
           java -version
-          echo "SDK=$ANDROID_SDK_ROOT"
-          sdkmanager --list_installed 2>/dev/null | grep -E 'ndk|platforms' || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
       - name: Install Android SDK extras
         run: |
@@ -51,8 +50,8 @@ jobs:
           GSEOF
           cat android/app/google-services.json
 
-      - name: Flutter pub get
-        run: flutter pub get
+      - name: Flutter pub get (verbose)
+        run: flutter pub get -v
 
       - name: Flutter analyze
         run: flutter analyze --no-fatal-warnings --no-fatal-infos || true
